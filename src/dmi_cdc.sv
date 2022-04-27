@@ -42,32 +42,44 @@ module dmi_cdc (
   input  logic             core_dmi_valid_i
 );
 
-  cdc_2phase #(.T(dm::dmi_req_t)) i_cdc_req (
-    .src_rst_ni  ( trst_ni          ),
-    .src_clk_i   ( tck_i            ),
-    .src_data_i  ( jtag_dmi_req_i   ),
-    .src_valid_i ( jtag_dmi_valid_i ),
-    .src_ready_o ( jtag_dmi_ready_o ),
+  // TODO: Make it clean for synthesis.
 
-    .dst_rst_ni  ( rst_ni           ),
-    .dst_clk_i   ( clk_i            ),
-    .dst_data_o  ( core_dmi_req_o   ),
-    .dst_valid_o ( core_dmi_valid_o ),
-    .dst_ready_i ( core_dmi_ready_i )
+  prim_fifo_async #(
+    .Width       ( $bits(dm::dmi_req_t) ),
+    .Depth       ( 4 )
+  ) i_cdc_req (
+    .clk_wr_i    ( tck_i            ),
+    .rst_wr_ni   ( trst_ni          ),
+    .wvalid_i    ( jtag_dmi_valid_i ),
+    .wready_o    ( jtag_dmi_ready_o ), // wrclk
+    .wdata_i     ( jtag_dmi_req_i   ),
+    .wdepth_o    (                  ),
+
+    .clk_rd_i    ( clk_i            ),
+    .rst_rd_ni   ( rst_ni           ),
+    .rvalid_o    ( core_dmi_valid_o ),
+    .rready_i    ( core_dmi_ready_i ),
+    .rdata_o     ( core_dmi_req_o   ),
+    .rdepth_o    (                  )
   );
 
-  cdc_2phase #(.T(dm::dmi_resp_t)) i_cdc_resp (
-    .src_rst_ni  ( rst_ni           ),
-    .src_clk_i   ( clk_i            ),
-    .src_data_i  ( core_dmi_resp_i  ),
-    .src_valid_i ( core_dmi_valid_i ),
-    .src_ready_o ( core_dmi_ready_o ),
+  prim_fifo_async #(
+    .Width       ( $bits(dm::dmi_resp_t) ),
+    .Depth       ( 4 )
+  ) i_cdc_resp (
+    .clk_wr_i    ( clk_i            ),
+    .rst_wr_ni   ( rst_ni           ),
+    .wvalid_i    ( core_dmi_valid_i ),
+    .wready_o    ( core_dmi_ready_o ), // wrclk
+    .wdata_i     ( core_dmi_resp_i  ),
+    .wdepth_o    (                  ),
 
-    .dst_rst_ni  ( trst_ni          ),
-    .dst_clk_i   ( tck_i            ),
-    .dst_data_o  ( jtag_dmi_resp_o  ),
-    .dst_valid_o ( jtag_dmi_valid_o ),
-    .dst_ready_i ( jtag_dmi_ready_i )
+    .clk_rd_i    ( tck_i            ),
+    .rst_rd_ni   ( trst_ni          ),
+    .rvalid_o    ( jtag_dmi_valid_o ),
+    .rready_i    ( jtag_dmi_ready_i ),
+    .rdata_o     ( jtag_dmi_resp_o  ),
+    .rdepth_o    (                  )
   );
 
 endmodule : dmi_cdc

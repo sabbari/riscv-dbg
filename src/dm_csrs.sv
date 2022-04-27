@@ -78,6 +78,7 @@ module dm_csrs #(
   input  logic                              sberror_valid_i, // bus error occurred
   input  logic [2:0]                        sberror_i // bus error occurred
 );
+
   // the amount of bits we need to represent all harts
   localparam int unsigned HartSelLen = (NrHarts == 1) ? 1 : $clog2(NrHarts);
   localparam int unsigned NrHartsAligned = 2**HartSelLen;
@@ -85,10 +86,6 @@ module dm_csrs #(
   dm::dtm_op_e dtm_op;
   assign dtm_op = dm::dtm_op_e'(dmi_req_i.op);
 
-  logic        resp_queue_full;
-  logic        resp_queue_empty;
-  logic        resp_queue_push;
-  logic        resp_queue_pop;
   logic [31:0] resp_queue_data;
 
   localparam dm::dm_csr_e DataEnd = dm::dm_csr_e'(dm::Data0 + {4'h0, dm::DataCount} - 8'h1);
@@ -180,9 +177,6 @@ module dm_csrs #(
 
   // a successful response returns zero
   assign dmi_resp_o.resp = dm::DTM_SUCCESS;
-  assign dmi_resp_valid_o     = ~resp_queue_empty;
-  assign dmi_req_ready_o      = ~resp_queue_full;
-  assign resp_queue_push      = dmi_req_valid_i & dmi_req_ready_o;
   // SBA
   assign sbautoincrement_o = sbcs_q.sbautoincrement;
   assign sbreadonaddr_o    = sbcs_q.sbreadonaddr;
@@ -551,27 +545,28 @@ module dm_csrs #(
   assign progbuf_o   = progbuf_q;
   assign data_o      = data_q;
 
-  assign resp_queue_pop = dmi_resp_ready_i & ~resp_queue_empty;
-
   assign ndmreset_o = dmcontrol_q.ndmreset;
 
+  logic unused_testmode;
+  assign unused_testmode = testmode_i;
+
   // response FIFO
-  fifo_v2 #(
-    .dtype            ( logic [31:0]         ),
-    .DEPTH            ( 2                    )
+  prim_fifo_sync #(
+    .Width   (32),
+    .Pass    (1'b0),
+    .Depth   (2)
   ) i_fifo (
-    .clk_i            ( clk_i                ),
-    .rst_ni           ( dmi_rst_ni           ), // reset only when system is re-set
-    .flush_i          ( 1'b0                 ), // we do not need to flush this queue
-    .testmode_i       ( testmode_i           ),
-    .full_o           ( resp_queue_full      ),
-    .empty_o          ( resp_queue_empty     ),
-    .alm_full_o       (                      ),
-    .alm_empty_o      (                      ),
-    .data_i           ( resp_queue_data      ),
-    .push_i           ( resp_queue_push      ),
-    .data_o           ( dmi_resp_o.data      ),
-    .pop_i            ( resp_queue_pop       )
+    .clk_i   ( clk_i                ),
+    .rst_ni  ( dmi_rst_ni           ), // reset only when system is re-set
+    .clr_i   ( 1'b0                 ),
+    .wdata_i ( resp_queue_data      ),
+    .wvalid_i( dmi_req_valid_i      ),
+    .wready_o( dmi_req_ready_o      ),
+    .rdata_o ( dmi_resp_o.data      ),
+    .rvalid_o( dmi_resp_valid_o     ),
+    .rready_i( dmi_resp_ready_i     ),
+    .full_o  (                      ), // Unused
+    .depth_o (                      )  // Unused
   );
 
   always_ff @(posedge clk_i or negedge rst_ni) begin : p_regs
